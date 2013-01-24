@@ -12,6 +12,23 @@
 # Description:    Sensu monitoring framework api
 ### END INIT INFO
 
+EMBEDDED_RUBY=false
+CONFIG_DIRECTORY=/etc/sensu
+PID_DIRECTORY=/var/run/sensu
+LOG_DIRECTORY=/var/log/sensu
+SENSU_USER=sensu
+SENSU_HOME=/opt/sensu
+
+if [ -f /etc/default/sensu ]; then
+    . /etc/default/sensu
+fi
+
+if [ -f /etc/sysconfig/sensu ]; then
+    . /etc/sysconfig/sensu
+fi
+
+component=api
+
 system=unknown
 if [ -f /etc/redhat-release ]; then
     system=redhat
@@ -29,19 +46,23 @@ elif [ -f /etc/lfs-release ]; then
     system=lfs
 fi
 
-prog="sensu-api"
+prog=sensu-$component
+config=$CONFIG_DIRECTORY/config.json
+config_dir=$CONFIG_DIRECTORY/conf.d
+logfile=$LOG_DIRECTORY/$prog.log
+pidfile=$PID_DIRECTORY/$prog.pid
+user=$SENSU_USER
+exec=$SENSU_HOME/bin/$prog
 
-user=${SENSU_USER-sensu}
-sensu_home=${SENSU_HOME-/opt/sensu}
-config=${CONFIG-/etc/sensu/config.json}
-exec=${EXEC-/opt/sensu/bin/sensu-api}
-logfile=${LOGFILE-/var/log/sensu/$prog.log}
-pidfile=${PIDFILE-/var/run/sensu/$prog.pid}
-options=${OPTIONS}
+cd $SENSU_HOME
 
-cd $sensu_home
+if [ "$EMBEDDED_RUBY" = "true" ]; then
+    export PATH=/opt/sensu/embedded/bin:$PATH:/etc/sensu/plugins:/etc/sensu/handlers
+else
+    export PATH=$PATH:/etc/sensu/plugins:/etc/sensu/handlers
+fi
 
-## 
+##
 ## Set platform specific bits here.
 ## The original platform for this script was redhat so the scripts are partial
 ## to redhat style. Eventually we may want to be more LSB compliant
@@ -104,7 +125,7 @@ if [ "$system" = "debian" ]; then
         start-stop-daemon --start --chuid $1 --pidfile $2 --exec $3 -- $4
     }
     echo_ok() {
-        log_end_msg 0 
+        log_end_msg 0
     }
     echo_fail() {
         log_end_msg 1
@@ -124,33 +145,19 @@ if [ "$system" = "suse" ]; then
         startproc -s -u $1 -p $2 $3 $4
     }
     echo_ok() {
-        log_success_msg 
+        log_success_msg
     }
     echo_fail() {
         log_failure_msg
     }
-
-   log_daemon_msg() {
+    log_daemon_msg() {
         echo -n $"$1"
     }
-
     log_action_msg() {
         echo $@
     }
 fi
-# TODO: support other platforms in the future: suse, gentoo, arch, slackware, etc
-
-EMBEDDED_RUBY=false
-
-if [ -f /etc/default/sensu ]; then
-    . /etc/default/sensu
-fi
-
-if [ "x$EMBEDDED_RUBY" = "xtrue" ]; then
-    export PATH=/opt/sensu/embedded/bin:$PATH:/etc/sensu/plugins:/etc/sensu/handlers
-else
-    export PATH=$PATH:/etc/sensu/plugins:/etc/sensu/handlers
-fi
+# TODO: support other platforms in the future: gentoo, arch, slackware, etc
 
 ensure_pid_dir () {
     pid_dir=`dirname ${pidfile}`
@@ -175,7 +182,7 @@ start() {
     fi
 
     ensure_pid_dir
-    start_daemon $user $pidfile $exec "-b -c $config -p $pidfile -l $logfile $options"
+    start_daemon $user $pidfile $exec "-b -c $config -d $config_dir -p $pidfile -l $logfile $options"
     RETVAL=$?
     sleep 1
 
@@ -190,7 +197,7 @@ start() {
         touch $lockfile
     fi
     echo_ok
-    
+
     return $RETVAL
 }
 
@@ -256,13 +263,14 @@ status() {
 # sometimes sensu components need a moment to shutdown, so
 # let's implement a waiting approach to restarts with a timeout
 restart() {
-    max_wait=10
-    count=0; success=0
+    max_wait=20
+    count=0
+    success=0
 
     stop
 
     while [ $count -lt $max_wait ]; do
-        count=$((count + 1))        
+        count=$((count + 1))
         status &> /dev/null
         if [ $? -eq 0 ]; then
             # still running
