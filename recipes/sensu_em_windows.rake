@@ -5,7 +5,7 @@ Bunchr::Software.new do |t|
 
   sensu_em_build = "sensu-em-#{t.version}.tar.gz"
 
-  t.download_commands << "wget -O #{sensu_em_build} https://github.com/sensu/sensu-em/archive/v#{t.version}.tar.gz"
+  t.download_commands << "wget --no-check-certificate -O #{sensu_em_build} https://github.com/sensu/sensu-em/archive/v#{t.version}.tar.gz"
   t.download_commands << "tar xfvz #{sensu_em_build}"
 
   install_prefix = "#{Bunchr.install_dir}\\embedded"
