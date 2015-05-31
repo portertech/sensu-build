@@ -3,8 +3,10 @@ Bunchr::Software.new do |t|
   t.version = '2.5.0.beta'
   t.work_dir = "sensu-em-#{t.version}"
 
-  t.download_commands << "curl -O https://github.com/sensu/sensu-em/archive/v#{t.version}.tar.gz"
-  t.download_commands << "tar xfvz sensu-em-#{t.version}.tar.gz"
+  sensu_em_build = "sensu-em-#{t.version}.tar.gz"
+
+  t.download_commands << "wget -O #{sensu_em_build} https://github.com/sensu/sensu-em/archive/v#{t.version}.tar.gz"
+  t.download_commands << "tar xfvz #{sensu_em_build}"
 
   install_prefix = "#{Bunchr.install_dir}\\embedded"
 
